@@ -6,6 +6,8 @@ import itertools as IT
 import functools as FT
 import operator as OP
 import random
+import threading
+import time
 
 
 class Messages:
@@ -13,7 +15,8 @@ class Messages:
 /start - to start bot
 /help - to get help with commands'''
 
-    START_REPLY = f'''Hello {{user.first_name}}, this is Tic Tac Toe Game Bot
+    START_REPLY = f'''Hello {{user.first_name}},
+this is Tic Tac Toe Game Bot
 
 {HELP_REPLY}'''
 
@@ -21,7 +24,7 @@ class Messages:
 
 /help - for help'''
 
-    NEW_GAME_REPLY = '''Let's play! Your turn'''
+    NEW_GAME_REPLY = '''Let's play! Make your turn'''
 
 
 def chunks(it, n):
@@ -85,6 +88,8 @@ class Game:
         r = [[None] * 3 for i in range(3)]
         for i, row in enumerate(m.inline_keyboard):
             for j, b in enumerate(row):
+                if b.callback_data == '/new':
+                    break
                 r[i][j] = b.text
         return cls(data=r)
 
@@ -162,11 +167,12 @@ class Game:
 
     @property
     def markup(self):
+        new_game_text = '/new' if self.winner is not None or self.is_draw else 'reset'
         return telegram.InlineKeyboardMarkup.from_rows_of(
             buttons=[
                 telegram.InlineKeyboardMarkup.Button(text=v, callback_data=i)
                 for i, v in enumerate(IT.chain.from_iterable(self.data))
-            ],
+            ] + [telegram.InlineKeyboardMarkup.Button(text=new_game_text, callback_data='/new'), ],
             items_in_row=3,
         )
 
@@ -204,7 +210,8 @@ def test():
     g = Game()
     for i in range(5):
         # print(g)
-        print(g.auto_turn())
+        # print(g.auto_turn())
+        g.auto_turn()
 
     # sys.exit()
 
@@ -238,31 +245,62 @@ def on_update(bot: telegram.Bot, update: telegram.Update):
             )
     elif update.type == telegram.Update.Type.CALLBACK_QUERY:
         cq: telegram.CallbackQuery = update.callback_query
+        msg = cq.message
         chat = cq.message.chat
         game = Game.from_reply_markup(cq.message.reply_markup)
+        if cq.data == '/new':
+            t = 'new game, yay!'
+            bot.answer_callback_query(
+                cq, text=t,
+            )
+            bot.edit_message_text(
+                message=msg, chat=chat,
+                text=t,
+                markup=Game().markup,
+            )
+            return
         turn = int(cq.data)
         try:
             winner = game.turn(game.first, turn)
         except AssertionError:
-            bot.send_message(chat=chat, text='wrong turn')
+            bot.answer_callback_query(
+                cq, text='wrong turn, try again',
+            )
             return
         else:
+            text = 'my turn...'
             if winner:
-                bot.send_message(chat=chat, text='you won!\ntype /new for new game')
+                text = 'you won!'
             elif game.is_draw:
-                bot.send_message(chat=chat, text='draw ):\ntype /new for new game')
-            else:
+                text = 'draw ):'
+            bot.answer_callback_query(
+                cq, text=text,
+            )
+            bot.edit_message_text(
+                chat=chat,
+                message=msg,
+                text=text,
+                # inline_message_id=cq.inline_message_id,
+                markup=game.markup,
+            )
+            if not winner and not game.is_draw:
                 winner = game.auto_turn(game.O)
+                # time.sleep(random.random() * 1)
+                text = 'your turn'
                 if winner:
-                    bot.send_message(chat=chat, text='i won! B)\ntype /new for new game')
+                    text = 'i won! B)'
                 elif game.is_draw:
-                    bot.send_message(chat=chat, text='draw ):\ntype /new for new game')
-                else:
-                    bot.send_message(
-                        chat=chat,
-                        text='your turn',
-                        reply_markup=game.markup,
-                    )
+                    text = 'draw ):'
+                bot.answer_callback_query(
+                    cq, text=text,
+                )
+                bot.edit_message_text(
+                    chat=chat,
+                    message=msg,
+                    text=text,
+                    # inline_message=cq.inline_message_id,
+                    markup=game.markup,
+                )
 
 
 def main():
@@ -271,13 +309,12 @@ def main():
     except KeyError:
         return sys.exit('BOT_API_TOKEN env variable required')
 
-    last_update = None
+    u = None
     while True:
-        updates = bot.updates(after=last_update, timeout=3)
+        updates = bot.updates(after=u, timeout=3)
         print('updates:', len(updates))
         for u in updates:
-            on_update(bot, u)
-            last_update = u
+            threading.Thread(target=on_update, args=(bot, u)).start()
 
 
 if __name__ == "__main__":
