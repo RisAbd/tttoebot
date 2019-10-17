@@ -8,6 +8,7 @@ import operator as OP
 import random
 import threading
 import time
+import enum
 
 
 class Messages:
@@ -125,21 +126,53 @@ class Game:
         r = (self.X, self.O) if self.first == self.X else (self.O, self.X)
         return r[0] if eq else r[1]
 
+    class Winner:
+        class WinType(enum.Enum):
+            A_DIAGONAL = 'a_diagonal'
+            B_DIAGONAL = 'b_diagonal'
+            ROW_0 = 'row0'
+            ROW_1 = 'row1'
+            ROW_2 = 'row2'
+            COLUMN_0 = 'column0'
+            COLUMN_1 = 'column1'
+            COLUMN_2 = 'column2'
+
+        def __init__(self, p, seq, win_type):
+            self.player = p
+            self.seq = seq
+            if not isinstance(win_type, self.WinType):
+                win_type = self.WinType(win_type)
+            self.win_type = win_type
+
+        def __str__(self):
+            return self.player
+
+        def __repr__(self):
+            return ', '.join(self, self.seq, self.win_type)
+
+        @property
+        def s(self):
+            return str(self)
+
+
     @property
     def winner(self):
         for p in self.PLAYERS:
             # diagonal left-top to bottom-right
-            if [self.data[i][i] for i in range(3)].count(p) == 3:
-                return p
+            s = [(i, i) for i in range(3)]
+            if [self.data[x][y] for x, y in s].count(p) == 3:
+                return self.Winner(p, s, 'a_diagonal')
             # diagonal left-top to bottom-right
-            if [self.data[i][2-i] for i in range(3)].count(p) == 3:
-                return p
-            for r in self.data:
+            s = [(i, 2-i) for i in range(3)]
+            if [self.data[x][y] for x, y in s].count(p) == 3:
+                return self.Winner(p, s, 'b_diagonal')
+            for i, r in enumerate(self.data):
                 if r.count(p) == 3:
-                    return p
+                    return self.Winner(p, [(i, j) for j in range(3)], 'row'+str(i))
             for i in range(3):
-                if [self.data[j][i] for j in range(3)].count(p) == 3:
-                    return p
+                s = [(j, i) for j in range(3)]
+                if [self.data[x][y] for x, y in s].count(p) == 3:
+                    return self.Winner(p, s, 'column'+str(i))
 
     @property
     def is_draw(self):
@@ -194,13 +227,28 @@ def test():
     assert Game(first=Game.O).current == Game.O
 
     assert Game().turn('X', 0, 0) is None
-    assert Game('XO-', 'XO-', '---').turn('X', 2, 0) == 'X'
-    assert Game('XX-', 'OO-', '---').turn('X', 0, 2) == 'X'
-    assert Game('XO-', 'OX-', '---').turn('X', 2, 2) == 'X'
-    assert Game('-OX', 'OX-', '---').turn('X', 2, 0) == 'X'
+
+    assert str(Game('XO-',
+                    'XO-',
+                    '---').turn('X', 2, 0)) == 'X'
+    assert Game('XO-',
+                'XO-',
+                '---').turn('X', 2, 0).win_type.value == 'column0'
+    assert str(Game('XX-',
+                    'OO-',
+                    '---').turn('X', 0, 2)) == 'X'
+    assert str(Game('XO-',
+                    'OX-',
+                    '---').turn('X', 2, 2)) == 'X'
+    assert str(Game('-OX',
+                    'OX-',
+                    '---').turn('X', 2, 0)) == 'X'
 
     assert Game('XXO', 'OOX', 'XXO').is_draw
-    assert Game('XXO', 'OOX', 'XX-') == Game(*'XXOOOXXX_') == Game('XXOOOXXX ')
+
+    assert Game('XXO', 'OOX', 'XX-') == \
+           Game(*'XXOOOXXX_') == \
+           Game('XXOOOXXX ')
 
     try:
         Game('X--------').turn('X', 0, 0)
@@ -213,9 +261,10 @@ def test():
         # print(g.auto_turn())
         g.auto_turn()
 
-    # sys.exit()
 
-test()
+if {'-t', '--test'}.intersection(sys.argv[1:]):
+    test()
+    sys.exit()
 
 
 def on_update(bot: telegram.Bot, update: telegram.Update):
