@@ -322,9 +322,6 @@ def on_update(bot: telegram.Bot, update: telegram.Update):
                 text = 'you won!'
             elif game.is_draw:
                 text = 'draw ):'
-            bot.answer_callback_query(
-                cq, text=text,
-            )
             bot.edit_message_text(
                 chat=chat,
                 message=msg,
@@ -332,7 +329,11 @@ def on_update(bot: telegram.Bot, update: telegram.Update):
                 # inline_message_id=cq.inline_message_id,
                 markup=game.markup,
             )
-            if not winner and not game.is_draw:
+            if winner or game.is_draw:
+                bot.answer_callback_query(
+                    cq, text=text,
+                )
+            else:
                 time.sleep(random.random())
                 winner = game.auto_turn(game.O)
                 text = 'your turn'
