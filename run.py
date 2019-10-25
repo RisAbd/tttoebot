@@ -333,8 +333,8 @@ def on_update(bot: telegram.Bot, update: telegram.Update):
                 markup=game.markup,
             )
             if not winner and not game.is_draw:
+                time.sleep(random.random())
                 winner = game.auto_turn(game.O)
-                # time.sleep(random.random() * 1)
                 text = 'your turn'
                 if winner:
                     text = 'i won! B)'
