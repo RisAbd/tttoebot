@@ -366,9 +366,6 @@ def main():
 
     opts, args = parser.parse_args()
 
-    print(opts, args)
-    import sys; sys.exit(0)
-
     u = None
     while True:
         updates = bot.updates(after=u, timeout=opts.timeout)
