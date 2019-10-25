@@ -358,9 +358,20 @@ def main():
     except KeyError:
         return sys.exit('BOT_API_TOKEN env variable required')
 
+    import optparse
+
+    parser = optparse.OptionParser()
+    parser.add_option('-t', '--timeout', dest='timeout',
+                      default=os.environ.get('TTTOEBOT_TIMEOUT', 10))
+
+    opts, args = parser.parse_args()
+
+    print(opts, args)
+    import sys; sys.exit(0)
+
     u = None
     while True:
-        updates = bot.updates(after=u, timeout=3)
+        updates = bot.updates(after=u, timeout=opts.timeout)
         print('updates:', len(updates))
         for u in updates:
             threading.Thread(target=on_update, args=(bot, u)).start()
